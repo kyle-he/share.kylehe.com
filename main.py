@@ -1,5 +1,6 @@
 from flask import Flask, request, redirect, url_for, send_from_directory, render_template_string
 import os
+import shutil
 
 app = Flask(__name__)
 UPLOAD_FOLDER = 'uploads'
@@ -13,9 +14,18 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+def get_file_size(file_path):
+    return os.path.getsize(file_path)
+
+def get_storage_info():
+    total, used, free = shutil.disk_usage(app.config['UPLOAD_FOLDER'])
+    return total, used, free
+
 @app.route('/')
 def index():
     files = os.listdir(app.config['UPLOAD_FOLDER'])
+    file_info = [(file, get_file_size(os.path.join(app.config['UPLOAD_FOLDER'], file))) for file in files]
+    total_storage, used_storage, free_storage = get_storage_info()
     return render_template_string('''
     <!doctype html>
     <title>share.kylehe.com</title>
@@ -24,18 +34,22 @@ def index():
       <input type=file name=file>
       <input type=submit value=Upload>
     </form>
+    <h2>Storage Information</h2>
+    <p>Total storage: {{ total_storage | filesizeformat }}</p>
+    <p>Used storage: {{ used_storage | filesizeformat }}</p>
+    <p>Available storage: {{ free_storage | filesizeformat }}</p>
     <h1>Files</h1>
     <ul>
-    {% for file in files %}
+    {% for file, size in file_info %}
       <li>
-        <a href="{{ url_for('uploaded_file', filename=file) }}">{{ file }}</a>
+        <a href="{{ url_for('uploaded_file', filename=file) }}">{{ file }}</a> ({{ size | filesizeformat }})
         <form method="post" action="{{ url_for('delete_file', filename=file) }}" style="display:inline;">
           <input type="submit" value="Delete">
         </form>
       </li>
     {% endfor %}
     </ul>
-    ''', files=files)
+    ''', file_info=file_info, total_storage=total_storage, used_storage=used_storage, free_storage=free_storage)
 
 @app.route('/', methods=['POST'])
 def upload_file():

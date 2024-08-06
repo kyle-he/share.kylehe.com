@@ -32,6 +32,8 @@ def index():
       <input type=submit value=Upload>
     </form>
     <div id="uploading" style="display:none;">Uploading...</div>
+    <progress id="progressBar" value="0" max="100" style="width:50%; display:none;"></progress>
+    <div id="timeLeft" style="display:none;">Estimated time left: <span id="time"></span></div>
     <h2>Storage Information</h2>
     <p>Total storage: {{ total_storage | filesizeformat }}</p>
     <p>Used storage: {{ used_storage | filesizeformat }}</p>
@@ -48,8 +50,53 @@ def index():
     {% endfor %}
     </ul>
     <script>
-      document.getElementById('uploadForm').onsubmit = function() {
-          document.getElementById('uploading').style.display = 'block';
+      document.getElementById('uploadForm').onsubmit = function(event) {
+          event.preventDefault();
+          var form = event.target;
+          var formData = new FormData(form);
+          var xhr = new XMLHttpRequest();
+          xhr.open('POST', form.action, true);
+
+          var startTime = null;
+
+          xhr.upload.onprogress = function(event) {
+              if (event.lengthComputable) {
+                  if (!startTime) startTime = new Date().getTime();
+                  var elapsed = (new Date().getTime() - startTime) / 1000;
+                  var percentComplete = (event.loaded / event.total) * 100;
+                  document.getElementById('progressBar').value = percentComplete;
+                  
+                  var uploadSpeed = event.loaded / elapsed; // bytes per second
+                  var timeRemaining = (event.total - event.loaded) / uploadSpeed; // seconds
+
+                  var minutes = Math.floor(timeRemaining / 60);
+                  var seconds = Math.floor(timeRemaining % 60);
+
+                  document.getElementById('time').textContent = minutes + 'm ' + seconds + 's';
+              }
+          };
+
+          xhr.onloadstart = function(event) {
+              document.getElementById('uploading').style.display = 'block';
+              document.getElementById('progressBar').style.display = 'block';
+              document.getElementById('timeLeft').style.display = 'block';
+          };
+
+          xhr.onloadend = function(event) {
+              document.getElementById('uploading').style.display = 'none';
+              document.getElementById('progressBar').style.display = 'none';
+              document.getElementById('timeLeft').style.display = 'none';
+          };
+
+          xhr.onload = function() {
+              if (xhr.status === 200) {
+                  window.location.href = xhr.responseURL;
+              } else {
+                  alert('An error occurred while uploading the file.');
+              }
+          };
+
+          xhr.send(formData);
       };
     </script>
     ''', file_info=file_info, total_storage=total_storage, used_storage=used_storage, free_storage=free_storage)

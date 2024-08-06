@@ -1,40 +1,69 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>share.kylehe.com</title>
-    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
-<body>
+    <link
+      rel="icon"
+      type="image/x-icon"
+      href="{{ url_for('static', filename='favicon.ico') }}"
+    />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='style.css') }}"
+    />
+  </head>
+  <body>
     <div class="container">
-        <h1>share.kylehe.com</h1>
-        <div id="dropZone" class="drop-zone">Drag & Drop files here or paste files</div>
-        <form id="uploadForm" method="post" enctype="multipart/form-data" class="file-upload-form">
-            <input type="file" name="file" id="fileInput" multiple required>
-            <input type="submit" value="Upload" class="submit-button">
-        </form>
-        <div id="selectedFiles" class="selected-files"></div>
-        <div id="uploading" class="uploading">Uploading...</div>
-        <progress id="progressBar" value="0" max="100"></progress>
-        <div id="timeLeft" class="time-left">Estimated time left: <span id="time"></span></div>
-        <h2>Storage Information</h2>
-        <p>Total storage: {{ total_storage | filesizeformat }}</p>
-        <p>Used storage: {{ used_storage | filesizeformat }}</p>
-        <p>Available storage: {{ free_storage | filesizeformat }}</p>
-        <h2>Files</h2>
-        <ul id="fileList">
+      <h1>share.kylehe.com</h1>
+      <div id="dropZone" class="drop-zone">
+        Drag & Drop files here or paste files
+      </div>
+      <form
+        id="uploadForm"
+        method="post"
+        enctype="multipart/form-data"
+        class="file-upload-form"
+      >
+        <input type="file" name="file" id="fileInput" multiple required />
+        <input type="submit" value="Upload" class="submit-button" />
+      </form>
+      <div id="selectedFiles" class="selected-files"></div>
+      <div id="uploading" class="uploading">Uploading...</div>
+      <progress id="progressBar" value="0" max="100"></progress>
+      <div id="timeLeft" class="time-left">
+        Estimated time left: <span id="time"></span>
+      </div>
+      <h2>Storage Information</h2>
+      <p>Total storage: {{ total_storage | filesizeformat }}</p>
+      <p>Used storage: {{ used_storage | filesizeformat }}</p>
+      <p>Available storage: {{ free_storage | filesizeformat }}</p>
+      <h2>Files</h2>
+      <ul id="fileList">
         {% for file, size, timestamp in file_info %}
-            <li>
-                <div class = "fileText"> <a href="{{ url_for('uploaded_file', filename=file) }}">{{ file }}</a> ({{ size | filesizeformat }}) - Uploaded: <span class="timestamp" data-timestamp="{{ timestamp }}">{{ timestamp }}</span> </div>
-                <form method="post" action="{{ url_for('delete_file', filename=file) }}">
-                    <input type="submit" class="submit-button" value="Delete">
-                </form>
-            </li>
+        <li>
+          <div class="fileText">
+            <a
+              href="{{ url_for('uploaded_file', filename=file) }}"
+              class="filename"
+              >{{file}}</a
+            >
+            ({{ size | filesizeformat }}) - Uploaded:
+            <span class="timestamp" data-timestamp="{{ timestamp }}"
+              >{{ timestamp }}</span
+            >
+          </div>
+          <form
+            method="post"
+            action="{{ url_for('delete_file', filename=file) }}"
+          >
+            <input type="submit" class="submit-button" value="Delete" />
+          </form>
+        </li>
         {% endfor %}
-        </ul>
+      </ul>
     </div>
     <script src="{{ url_for('static', filename='script.js') }}"></script>
-</body>
+  </body>
 </html>

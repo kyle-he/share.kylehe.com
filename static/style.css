@@ -51,19 +51,13 @@ li form {
     margin-left: 10px; /* Space between filename and button */
 }
 
-.fileText a {
-    display: inline-block; /* Ensures the link behaves as a block element */
-    word-wrap: break-word; /* Allows long words to break and wrap to the next line */
-    max-width: 100%; /* Ensures the text doesn't overflow its container */
-    white-space: normal; /* Allows text to wrap */
-}
-
 .fileText {
-    max-width: 100%; /* Ensure the container does not overflow */
-    overflow-wrap: break-word; /* Breaks long words to wrap them */
-    white-space: normal; /* Ensures text wraps properly */
+    flex: 3; /* Allow the filename to fill the available space */
+    overflow: hidden; /* Hide overflow */
+    text-overflow: ellipsis; /* Add ellipsis for overflow text */
+    word-wrap: break-word;
+    max-width: 100%;
 }
-
 
 input[type="submit"] {
     width: 100%; /* Full width of its container */

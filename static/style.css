@@ -123,6 +123,14 @@ input[type="file"] {
     border-color: #000;
 }
 
+body.mobile .drop-zone {
+    display: none;
+  }
+  
+body.not-mobile .drop-zone {
+    display: block; 
+}
+
 .selected-files {
     margin-top: 20px;
     text-align: left;

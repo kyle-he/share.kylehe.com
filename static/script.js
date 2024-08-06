@@ -163,3 +163,18 @@ function updateFileInput() {
 }
 
 document.addEventListener('DOMContentLoaded', updateTimestamps);
+
+document.addEventListener('DOMContentLoaded', function() {
+    function checkMobileDevice() {
+      const userAgent = navigator.userAgent.toLowerCase();
+      const isMobile = /iphone|ipad|ipod|android|blackberry|mini|windows\sce|palm/i.test(userAgent);
+      if (isMobile) {
+        document.body.classList.add('mobile');
+      } else {
+        document.body.classList.add('not-mobile');
+      }
+    }
+  
+    checkMobileDevice();
+  });
+  

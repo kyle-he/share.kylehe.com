@@ -4,6 +4,7 @@ import shutil
 import config
 import json
 from datetime import datetime, timezone
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 
@@ -55,21 +56,22 @@ def upload_file():
     if file.filename == '':
         return redirect(request.url)
     if file:
-        filename = file.filename
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        base, extension = os.path.splitext(filename)
+        secure_name = secure_filename(file.filename)
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], secure_name)
+        base, extension = os.path.splitext(secure_name)
         counter = 1
         while os.path.exists(file_path):
-            filename = f"{base}_{counter}{extension}"
-            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            secure_name = f"{base}_{counter}{extension}"
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], secure_name)
             counter += 1
         file.save(file_path)
 
-        # Add metadata with UTC timestamp
         timestamp = datetime.now(timezone.utc).isoformat()
-        add_file_metadata(filename, timestamp)
+        add_file_metadata(secure_name, timestamp)
         
         return redirect(url_for('index'))
+    else:
+        return 'File not allowed', 400
 
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):

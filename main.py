@@ -1,18 +1,15 @@
 from flask import Flask, request, redirect, url_for, send_from_directory, render_template_string
 import os
 import shutil
+import config
 
 app = Flask(__name__)
-UPLOAD_FOLDER = 'uploads'
-ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'zip'}
 
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
+if not os.path.exists(config.UPLOAD_FOLDER):
+    os.makedirs(config.UPLOAD_FOLDER)
 
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+app.config['UPLOAD_FOLDER'] = config.UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = config.MAX_CONTENT_LENGTH
 
 def get_file_size(file_path):
     return os.path.getsize(file_path)
@@ -29,11 +26,12 @@ def index():
     return render_template_string('''
     <!doctype html>
     <title>share.kylehe.com</title>
-    <h1>Upload new File</h1>
-    <form method=post enctype=multipart/form-data>
+    <h1>share.kylehe.com</h1>
+    <form id="uploadForm" method=post enctype=multipart/form-data>
       <input type=file name=file>
       <input type=submit value=Upload>
     </form>
+    <div id="uploading" style="display:none;">Uploading...</div>
     <h2>Storage Information</h2>
     <p>Total storage: {{ total_storage | filesizeformat }}</p>
     <p>Used storage: {{ used_storage | filesizeformat }}</p>
@@ -49,6 +47,11 @@ def index():
       </li>
     {% endfor %}
     </ul>
+    <script>
+      document.getElementById('uploadForm').onsubmit = function() {
+          document.getElementById('uploading').style.display = 'block';
+      };
+    </script>
     ''', file_info=file_info, total_storage=total_storage, used_storage=used_storage, free_storage=free_storage)
 
 @app.route('/', methods=['POST'])
@@ -58,7 +61,7 @@ def upload_file():
     file = request.files['file']
     if file.filename == '':
         return redirect(request.url)
-    if file and allowed_file(file.filename):
+    if file:
         filename = file.filename
         file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
         return redirect(url_for('index'))

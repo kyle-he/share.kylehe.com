@@ -1,7 +1,9 @@
-from flask import Flask, request, redirect, url_for, send_from_directory, render_template_string
+from flask import Flask, request, redirect, url_for, send_from_directory, render_template
 import os
 import shutil
 import config
+import json
+from datetime import datetime, timezone
 
 app = Flask(__name__)
 
@@ -11,6 +13,8 @@ if not os.path.exists(config.UPLOAD_FOLDER):
 app.config['UPLOAD_FOLDER'] = config.UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = config.MAX_CONTENT_LENGTH
 
+metadata_file = os.path.join(app.config['UPLOAD_FOLDER'], 'metadata.json')
+
 def get_file_size(file_path):
     return os.path.getsize(file_path)
 
@@ -18,88 +22,30 @@ def get_storage_info():
     total, used, free = shutil.disk_usage(app.config['UPLOAD_FOLDER'])
     return total, used, free
 
+def load_metadata():
+    if os.path.exists(metadata_file):
+        with open(metadata_file, 'r') as f:
+            return json.load(f)
+    return {}
+
+def save_metadata(metadata):
+    with open(metadata_file, 'w') as f:
+        json.dump(metadata, f)
+
+def add_file_metadata(filename, timestamp):
+    metadata = load_metadata()
+    metadata[filename] = timestamp
+    save_metadata(metadata)
+
 @app.route('/')
 def index():
+    metadata = load_metadata()
     files = os.listdir(app.config['UPLOAD_FOLDER'])
-    file_info = [(file, get_file_size(os.path.join(app.config['UPLOAD_FOLDER'], file))) for file in files]
+    files = [file for file in files if file != 'metadata.json']
+    file_info = [(file, get_file_size(os.path.join(app.config['UPLOAD_FOLDER'], file)), metadata.get(file)) for file in files]
+    file_info.sort(key=lambda x: x[2], reverse=True)
     total_storage, used_storage, free_storage = get_storage_info()
-    return render_template_string('''
-    <!doctype html>
-    <title>share.kylehe.com</title>
-    <h1>share.kylehe.com</h1>
-    <form id="uploadForm" method=post enctype=multipart/form-data>
-      <input type=file name=file>
-      <input type=submit value=Upload>
-    </form>
-    <div id="uploading" style="display:none;">Uploading...</div>
-    <progress id="progressBar" value="0" max="100" style="width:50%; display:none;"></progress>
-    <div id="timeLeft" style="display:none;">Estimated time left: <span id="time"></span></div>
-    <h2>Storage Information</h2>
-    <p>Total storage: {{ total_storage | filesizeformat }}</p>
-    <p>Used storage: {{ used_storage | filesizeformat }}</p>
-    <p>Available storage: {{ free_storage | filesizeformat }}</p>
-    <h1>Files</h1>
-    <ul>
-    {% for file, size in file_info %}
-      <li>
-        <a href="{{ url_for('uploaded_file', filename=file) }}">{{ file }}</a> ({{ size | filesizeformat }})
-        <form method="post" action="{{ url_for('delete_file', filename=file) }}" style="display:inline;">
-          <input type="submit" value="Delete">
-        </form>
-      </li>
-    {% endfor %}
-    </ul>
-    <script>
-      document.getElementById('uploadForm').onsubmit = function(event) {
-          event.preventDefault();
-          var form = event.target;
-          var formData = new FormData(form);
-          var xhr = new XMLHttpRequest();
-          xhr.open('POST', form.action, true);
-
-          var startTime = null;
-
-          xhr.upload.onprogress = function(event) {
-              if (event.lengthComputable) {
-                  if (!startTime) startTime = new Date().getTime();
-                  var elapsed = (new Date().getTime() - startTime) / 1000;
-                  var percentComplete = (event.loaded / event.total) * 100;
-                  document.getElementById('progressBar').value = percentComplete;
-                  
-                  var uploadSpeed = event.loaded / elapsed; // bytes per second
-                  var timeRemaining = (event.total - event.loaded) / uploadSpeed; // seconds
-
-                  var minutes = Math.floor(timeRemaining / 60);
-                  var seconds = Math.floor(timeRemaining % 60);
-
-                  document.getElementById('time').textContent = minutes + 'm ' + seconds + 's';
-              }
-          };
-
-          xhr.onloadstart = function(event) {
-              document.getElementById('uploading').style.display = 'block';
-              document.getElementById('progressBar').style.display = 'block';
-              document.getElementById('timeLeft').style.display = 'block';
-          };
-
-          xhr.onloadend = function(event) {
-              document.getElementById('uploading').style.display = 'none';
-              document.getElementById('progressBar').style.display = 'none';
-              document.getElementById('timeLeft').style.display = 'none';
-          };
-
-          xhr.onload = function() {
-              if (xhr.status === 200) {
-                  window.location.href = xhr.responseURL;
-              } else {
-                  alert('An error occurred while uploading the file.');
-              }
-          };
-
-          xhr.send(formData);
-      };
-    </script>
-    ''', file_info=file_info, total_storage=total_storage, used_storage=used_storage, free_storage=free_storage)
+    return render_template('index.html', file_info=file_info, total_storage=total_storage, used_storage=used_storage, free_storage=free_storage)
 
 @app.route('/', methods=['POST'])
 def upload_file():
@@ -110,7 +56,19 @@ def upload_file():
         return redirect(request.url)
     if file:
         filename = file.filename
-        file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        base, extension = os.path.splitext(filename)
+        counter = 1
+        while os.path.exists(file_path):
+            filename = f"{base}_{counter}{extension}"
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            counter += 1
+        file.save(file_path)
+
+        # Add metadata with UTC timestamp
+        timestamp = datetime.now(timezone.utc).isoformat()
+        add_file_metadata(filename, timestamp)
+        
         return redirect(url_for('index'))
 
 @app.route('/uploads/<filename>')
@@ -122,6 +80,10 @@ def delete_file(filename):
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     if os.path.exists(file_path):
         os.remove(file_path)
+    metadata = load_metadata()
+    if filename in metadata:
+        del metadata[filename]
+        save_metadata(metadata)
     return redirect(url_for('index'))
 
 if __name__ == '__main__':

@@ -1,0 +1,155 @@
+body {
+    margin: 0;
+    padding: 20px;
+    box-sizing: border-box;
+    font-size: 18px; /* Base font size for readability */
+    display: flex;
+    justify-content: center;
+}
+
+.container {
+    max-width: 800px;
+    width: 100%;
+    text-align: center;
+    padding: 20px;
+}
+
+h1, h2, p, ul, li, form {
+    margin: 0;
+    padding: 0;
+    text-align: left;
+}
+
+h1 {
+    margin-bottom: 20px;
+}
+
+h2 {
+    margin-top: 20px;
+}
+
+/* ul {
+    padding: 0;
+    list-style: none;
+}
+
+li {
+    margin: 10px 0;
+} */
+
+li {
+    margin: 10px 0;
+    border: 2px solid #ccc; /* Border like the submit button */
+    padding: 10px;
+    display: flex;
+    align-items: center; /* Align items vertically in the center */
+    flex-wrap: wrap; /* Allow wrapping into new line if needed */
+}
+
+li form {
+    flex: 1; /* Allow the form to take up necessary space */
+    margin-left: 10px; /* Space between filename and button */
+}
+
+.fileText {
+    flex: 3; /* Allow the filename to fill the available space */
+    overflow: hidden; /* Hide overflow */
+    text-overflow: ellipsis; /* Add ellipsis for overflow text */
+}
+
+input[type="submit"] {
+    width: 100%; /* Full width of its container */
+    box-sizing: border-box; /* Border box sizing */
+    cursor: pointer; /* Pointer cursor on hover */
+}
+
+progress {
+    width: 100%;
+    display: none; /* Hide progress bar initially */
+}
+
+.uploading, .time-left {
+    display: none;
+}
+
+.file-upload-form {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border: 2px solid #ccc;
+    padding: 10px;
+    margin-top: 20px;
+}
+
+/* .file-label {
+    cursor: pointer;
+    font-size: 18px;
+    margin-right: 10px;
+    flex: 4; 
+    text-align: center;
+} */
+
+input[type="file"] {
+    cursor: pointer;
+    font-size: 18px;
+    margin-right: 10px;
+    margin-top: 10px;
+    margin-bottom: 10px;
+    flex: 4; /* 80% width on larger screens */
+    text-align: center;
+}
+
+.submit-button {
+    font-size: 18px; /* Larger font size for buttons */
+    padding: 10px; /* More padding for better touch targets */
+    cursor: pointer;
+    border: 2px solid #ccc;
+    flex: 1; /* 20% width on larger screens */
+    box-sizing: border-box;
+}
+
+.drop-zone {
+    border: 2px dashed #ccc;
+    padding: 20px;
+    text-align: center;
+    margin-bottom: 20px;
+    box-sizing: border-box;
+    width: 100%;
+}
+
+.drop-zone.dragover {
+    border-color: #000;
+}
+
+.selected-files {
+    margin-top: 20px;
+    text-align: left;
+}
+
+@media (max-width: 767px) {
+    .file-upload-form {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .file-label, .submit-button {
+        flex: 1 0 100%; /* Full width on small screens */
+        margin-right: 0;
+        margin-bottom: 10px;
+    }
+
+    li {
+        flex-direction: column; /* Stack filename and button vertically */
+        align-items: stretch; /* Stretch items to full width */
+    }
+
+    li form {
+        width: 100%; /* Full width for the form on small screens */
+        margin-left: 0; /* Reset margin left */
+        margin-top: 10px; /* Space between filename and button */
+    }
+
+    li a, input[type="submit"] {
+        width: 100%; /* Full width for both link and button */
+    }
+}

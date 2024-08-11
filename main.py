@@ -1,9 +1,9 @@
-from flask import Flask, request, redirect, url_for, send_from_directory, render_template
+from flask import Flask, request, redirect, url_for, send_from_directory, render_template, jsonify
 import os
 import shutil
 import config
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
@@ -15,6 +15,11 @@ app.config['UPLOAD_FOLDER'] = config.UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = config.MAX_CONTENT_LENGTH
 
 metadata_file = os.path.join(app.config['UPLOAD_FOLDER'], 'metadata.json')
+
+# Rate limiting settings
+RATE_LIMIT = 5  # Max number of requests
+TIME_WINDOW = timedelta(minutes=1)  # Time window in minutes
+clients = {}  # Dictionary to store client IPs and their request count
 
 def get_file_size(file_path):
     return os.path.getsize(file_path)
@@ -38,6 +43,25 @@ def add_file_metadata(filename, timestamp):
     metadata[filename] = timestamp
     save_metadata(metadata)
 
+def is_rate_limited(client_ip):
+    now = datetime.now(timezone.utc)
+    if client_ip not in clients:
+        clients[client_ip] = {'count': 1, 'start_time': now}
+        return False
+    
+    client_data = clients[client_ip]
+    if now - client_data['start_time'] > TIME_WINDOW:
+        # Reset count and start time after the time window has passed
+        clients[client_ip] = {'count': 1, 'start_time': now}
+        return False
+    elif client_data['count'] < RATE_LIMIT:
+        # Increment the request count if within the time window
+        clients[client_ip]['count'] += 1
+        return False
+    else:
+        # Rate limit exceeded
+        return True
+
 @app.route('/')
 def index():
     metadata = load_metadata()
@@ -50,6 +74,10 @@ def index():
 
 @app.route('/', methods=['POST'])
 def upload_file():
+    client_ip = request.remote_addr
+    if is_rate_limited(client_ip):
+        return jsonify({'error': 'Rate limit exceeded. Try again later.'}), 429
+
     if 'file' not in request.files:
         return redirect(request.url)
     file = request.files['file']
@@ -79,6 +107,10 @@ def uploaded_file(filename):
 
 @app.route('/delete/<filename>', methods=['POST'])
 def delete_file(filename):
+    client_ip = request.remote_addr
+    if is_rate_limited(client_ip):
+        return jsonify({'error': 'Rate limit exceeded. Try again later.'}), 429
+
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     if os.path.exists(file_path):
         os.remove(file_path)

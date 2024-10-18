@@ -13,10 +13,21 @@ import { Server } from 'socket.io';
 const app = express();
 const server = http.createServer(app);
 
-// Initialize Socket.IO with proper CORS settings
+// Define a whitelist of allowed origins
+const allowedOrigins = ['http://localhost:8000', 'http://127.0.0.1:8000'];
+
+// Initialize Socket.IO with dynamic CORS settings
 const io = new Server(server, {
     cors: {
-        origin: 'http://127.0.0.1:8000', // Flask app origin
+        origin: function (origin, callback) {
+            // Allow requests with no origin (like mobile apps or curl requests)
+            if (!origin) return callback(null, true);
+            if (allowedOrigins.indexOf(origin) !== -1) {
+                callback(null, true);
+            } else {
+                callback(new Error('Not allowed by CORS'));
+            }
+        },
         methods: ['GET', 'POST'],
         credentials: true,
     },
@@ -34,8 +45,18 @@ if (!fs.existsSync(UPLOAD_FOLDER)) {
 
 // Middleware setup
 app.use(bodyParser.json());
+
+// CORS configuration for Express routes
 app.use(cors({
-    origin: 'http://127.0.0.1:8000',
+    origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.indexOf(origin) !== -1) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     methods: ['GET', 'POST'],
     credentials: true,
 }));
@@ -52,8 +73,10 @@ app.post('/start-torrent', (req, res) => {
         return res.status(400).json({ error: 'A torrent is already downloading. Please wait until it finishes or cancel it before starting a new one.' });
     }
 
+    // Validate Magnet URI using WebTorrent's parseTorrent
     let parsed;
     try {
+        console.log(magnetURI)
         parsed = WebTorrent.parseTorrent(magnetURI);
     } catch (err) {
         return res.status(400).json({ error: 'Invalid Magnet URI.' });
@@ -66,6 +89,7 @@ app.post('/start-torrent', (req, res) => {
         return res.status(400).json({ error: 'This torrent is already being downloaded.' });
     }
 
+    // Add the torrent to the client
     activeTorrent = client.add(magnetURI, { path: UPLOAD_FOLDER });
 
     // Handle torrent errors

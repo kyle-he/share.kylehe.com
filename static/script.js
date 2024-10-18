@@ -1,6 +1,16 @@
 // /static/script.js
 
 document.addEventListener('DOMContentLoaded', () => {
+    // File Upload Elements
+    const dropZone = document.getElementById('dropZone');
+    const uploadForm = document.getElementById('uploadForm');
+    const fileInput = document.getElementById('fileInput');
+    const selectedFiles = document.getElementById('selectedFiles');
+    const uploading = document.getElementById('uploading');
+    const progressBar = document.getElementById('progressBar');
+    const timeLeft = document.getElementById('timeLeft');
+    const timeSpan = document.getElementById('time');
+
     // Torrent Elements
     const torrentForm = document.getElementById('torrentForm');
     const magnetInput = document.getElementById('magnetInput');
@@ -11,6 +21,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const downloadSpeed = document.getElementById('downloadSpeed');
     const downloadInfo = document.getElementById('downloadInfo');
     const torrentNameDisplay = document.getElementById('torrentName');
+
+    // File List Element
     const fileList = document.getElementById('fileList');
 
     // Initialize Socket.IO connection
@@ -19,7 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
         transports: ['websocket', 'polling'],
     });
 
-    // Handle Socket.IO events
+    // Handle Socket.IO events for Torrenting
     socket.on('connect', () => {
         console.log('Connected to WebSocket server');
     });
@@ -39,7 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
         torrentProgress.style.display = 'block';
         cancelTorrentButton.style.display = 'block';
 
-        // Replace "Start Torrent" with "Cancel Torrent"
+        // Hide the torrent form after starting the torrent
         torrentForm.style.display = 'none';
     });
 
@@ -59,7 +71,104 @@ document.addEventListener('DOMContentLoaded', () => {
         resetTorrentUI();
     });
 
-    // Start Torrent Download
+    // Handle Drag-and-Drop Events
+    dropZone.addEventListener('dragover', (event) => {
+        event.preventDefault();
+        dropZone.classList.add('dragover');
+    });
+
+    dropZone.addEventListener('dragleave', (event) => {
+        event.preventDefault();
+        dropZone.classList.remove('dragover');
+    });
+
+    dropZone.addEventListener('drop', (event) => {
+        event.preventDefault();
+        dropZone.classList.remove('dragover');
+        const files = event.dataTransfer.files;
+        if (files.length > 0) {
+            handleFiles(files);
+        }
+    });
+
+    // Handle File Selection via Input
+    fileInput.addEventListener('change', (event) => {
+        const files = event.target.files;
+        if (files.length > 0) {
+            handleFiles(files);
+        }
+    });
+
+    // Handle Files (Display Selected Files)
+    function handleFiles(files) {
+        selectedFiles.innerHTML = '';
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            const div = document.createElement('div');
+            div.textContent = `${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB)`;
+            selectedFiles.appendChild(div);
+        }
+        uploadForm.classList.add('active');
+    }
+
+    // Handle File Upload Form Submission
+    uploadForm.onsubmit = function (event) {
+        event.preventDefault();
+        const files = fileInput.files;
+        if (files.length === 0) {
+            alert('Please select files or folders to upload.');
+            return;
+        }
+
+        const formData = new FormData();
+        for (let i = 0; i < files.length; i++) {
+            formData.append('file', files[i]);
+        }
+
+        // Show uploading indicators
+        uploading.style.display = 'block';
+        progressBar.style.display = 'block';
+        timeLeft.style.display = 'block';
+        progressBar.value = 0;
+        timeSpan.textContent = '';
+
+        // Perform the upload using Fetch API
+        fetch('/', {
+            method: 'POST',
+            body: formData,
+        })
+            .then(response => {
+                if (response.ok) {
+                    return response.json(); // Successful upload
+                } else {
+                    return response.json().then(data => {
+                        throw new Error(data.error || 'Upload failed.');
+                    });
+                }
+            })
+            .then(data => {
+                if (data.message) {
+                    alert(data.message);
+                    // Refresh the file list to include new uploads
+                    fetchFileList();
+                }
+            })
+            .catch(error => {
+                console.error('Error uploading files:', error);
+                alert(error.message);
+            })
+            .finally(() => {
+                // Hide uploading indicators
+                uploading.style.display = 'none';
+                progressBar.style.display = 'none';
+                timeLeft.style.display = 'none';
+                selectedFiles.innerHTML = '';
+                uploadForm.classList.remove('active');
+                fileInput.value = ''; // Reset the file input
+            });
+    };
+
+    // Handle Torrent Form Submission
     torrentForm.onsubmit = function (event) {
         event.preventDefault();
         const magnetURI = magnetInput.value.trim();
@@ -78,14 +187,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.error) {
                     alert(data.error);
                 } else {
-                    // Optionally, you can clear the input or provide feedback
+                    // Optionally, clear the input field
                     // magnetInput.value = '';
                 }
             })
-            .catch(error => console.error('Error starting torrent:', error));
+            .catch(error => {
+                console.error('Error starting torrent:', error);
+                alert('An error occurred while starting the torrent.');
+            });
     };
 
-    // Cancel Torrent Download
+    // Handle Cancel Torrent Button Click
     cancelTorrentButton.onclick = function () {
         fetch('http://localhost:3000/cancel-torrent', { method: 'POST' })
             .then(response => response.json())
@@ -95,7 +207,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     resetTorrentUI();
                 }
             })
-            .catch(error => console.error('Error canceling torrent:', error));
+            .catch(error => {
+                console.error('Error canceling torrent:', error);
+                alert('An error occurred while canceling the torrent.');
+            });
     };
 
     // Reset Torrent UI Elements
@@ -109,46 +224,15 @@ document.addEventListener('DOMContentLoaded', () => {
         torrentNameDisplay.textContent = 'N/A';
     }
 
-    // Handle Tab Visibility Changes
-    window.addEventListener('visibilitychange', () => {
-        if (document.hidden) {
-            resetTorrentUI();
-        }
-    });
-
-    // File Upload Form Handling
-    const uploadForm = document.getElementById('uploadForm');
-    const fileInput = document.getElementById('fileInput');
-
-    uploadForm.onsubmit = function (event) {
-        event.preventDefault();
-        const files = fileInput.files;
-        if (files.length === 0) {
-            alert('Please select files or folders to upload.');
-            return;
-        }
-
-        const formData = new FormData();
-        for (let i = 0; i < files.length; i++) {
-            formData.append('file', files[i]);
-        }
-
-        fetch('/', {
-            method: 'POST',
-            body: formData,
-        })
-            .then(response => {
-                if (response.redirected) {
-                    window.location.href = response.url;
-                }
-            })
-            .catch(error => console.error('Error uploading files:', error));
-    };
-
-    // Function to Fetch and Update File List
+    // Fetch and Update File List
     function fetchFileList() {
         fetch('/api/files')
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
             .then(data => {
                 // Clear the existing file list
                 fileList.innerHTML = '';
@@ -165,8 +249,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     fileLink.classList.add('filename');
 
                     fileTextDiv.appendChild(fileLink);
+
+                    // Display 'directory' if it's a directory, else show size
                     const fileInfo = document.createElement('span');
-                    fileInfo.textContent = ` (${file.size})`;
+                    if (file.is_dir) {
+                        fileInfo.textContent = ' (directory)';
+                    } else {
+                        fileInfo.textContent = ` (${file.size})`;
+                    }
                     fileTextDiv.appendChild(fileInfo);
 
                     li.appendChild(fileTextDiv);
@@ -186,7 +276,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     fileList.appendChild(li);
                 });
             })
-            .catch(error => console.error('Error fetching file list:', error));
+            .catch(error => {
+                console.error('Error fetching file list:', error);
+                alert('Failed to load file list.');
+            });
     }
 
     // Initial Fetch of File List on Page Load

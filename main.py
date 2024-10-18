@@ -1,3 +1,4 @@
+# main.py
 from flask import Flask, request, redirect, url_for, send_from_directory, render_template, jsonify
 import os
 import shutil
@@ -19,7 +20,7 @@ if not os.path.exists(app.config['UPLOAD_FOLDER']):
 metadata_file = os.path.join(app.config['UPLOAD_FOLDER'], 'metadata.json')
 
 # Rate limiting settings
-RATE_LIMIT = 5  # Max number of requests
+RATE_LIMIT = 100  # Max number of requests per time window
 TIME_WINDOW = timedelta(minutes=1)  # Time window in minutes
 clients = {}  # Dictionary to store client IPs and their request count
 
@@ -98,9 +99,27 @@ def get_file_info():
 @app.route('/')
 def index():
     """Render the main page with file and folder listings."""
+    total, used, free = get_storage_info()
     file_info = get_file_info()
-    total_storage, used_storage, free_storage = get_storage_info()
-    return render_template('index.html', file_info=file_info, total_storage=total_storage, used_storage=used_storage, free_storage=free_storage)
+    return render_template('index.html',
+                           total_storage=total,
+                           used_storage=used,
+                           free_storage=free,
+                           file_info=file_info)
+
+@app.route('/api/files')
+def api_files():
+    """API endpoint to return file and directory info in JSON format."""
+    file_info = get_file_info()
+    # Convert size in bytes to MB and format the data
+    formatted_files = []
+    for file, size, is_dir in file_info:
+        formatted_files.append({
+            'name': file,
+            'size': 'directory' if is_dir else f"{(size / (1024*1024)):.2f} MB",
+            'is_dir': is_dir
+        })
+    return jsonify(formatted_files)
 
 @app.route('/', methods=['POST'])
 def upload_file():
@@ -110,9 +129,12 @@ def upload_file():
         return jsonify({'error': 'Rate limit exceeded. Try again later.'}), 429
 
     if 'file' not in request.files:
-        return redirect(request.url)
+        return jsonify({'error': 'No file part in the request.'}), 400
     
     uploaded_files = request.files.getlist('file')
+    if not uploaded_files:
+        return jsonify({'error': 'No files selected for uploading.'}), 400
+
     for file in uploaded_files:
         if file.filename == '':
             continue  # Skip empty filenames
@@ -124,17 +146,20 @@ def upload_file():
         # Ensure parent directories exist
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
         # Save the file
-        file.save(file_path)
-        # Add metadata
-        timestamp = datetime.now(timezone.utc).isoformat()
-        add_file_metadata(filename, timestamp)
+        try:
+            file.save(file_path)
+            # Add metadata
+            timestamp = datetime.now(timezone.utc).isoformat()
+            add_file_metadata(filename, timestamp)
+        except Exception as e:
+            return jsonify({'error': f'Failed to upload {filename}: {str(e)}'}), 500
     
-    return redirect(url_for('index'))
+    return jsonify({'message': 'Files uploaded successfully.'}), 200
 
 @app.route('/uploads/<path:filename>')
 def uploaded_file(filename):
     """Serve uploaded files and directories."""
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename, as_attachment=False)
 
 @app.route('/delete/<path:filename>', methods=['POST'])
 def delete_file(filename):
@@ -144,17 +169,22 @@ def delete_file(filename):
         return jsonify({'error': 'Rate limit exceeded. Try again later.'}), 429
 
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    if os.path.exists(file_path):
+    if not os.path.exists(file_path):
+        return jsonify({'error': 'File or directory does not exist.'}), 404
+
+    try:
         if os.path.isdir(file_path):
             shutil.rmtree(file_path)
         else:
             os.remove(file_path)
-    # Remove metadata
-    metadata = load_metadata()
-    if filename in metadata:
-        del metadata[filename]
-        save_metadata(metadata)
-    return redirect(url_for('index'))
+        # Remove metadata
+        metadata = load_metadata()
+        if filename in metadata:
+            del metadata[filename]
+            save_metadata(metadata)
+        return jsonify({'message': 'File or directory deleted successfully.'}), 200
+    except Exception as e:
+        return jsonify({'error': f'Failed to delete {filename}: {str(e)}'}), 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8000)
+    app.run(host='0.0.0.0', port=8000, debug=True)

@@ -12,7 +12,39 @@
     <div class="container">
         <h1>share.kylehe.com</h1>
 
-        <!-- Torrent Magnet Section -->
+        <!-- Drag and Drop Zone -->
+        <div id="dropZone" class="drop-zone">
+            Drag & Drop files here or paste files
+        </div>
+
+        <!-- File Upload Form -->
+        <form
+            id="uploadForm"
+            method="post"
+            enctype="multipart/form-data"
+            class="file-upload-form"
+        >
+            <input type="file" name="file" id="fileInput" multiple webkitdirectory directory required />
+            <input type="submit" value="Upload" class="submit-button" />
+        </form>
+
+        <!-- Selected Files Display -->
+        <div id="selectedFiles" class="selected-files"></div>
+
+        <!-- Uploading Indicator -->
+        <div id="uploading" class="uploading" style="display: none;">
+            Uploading...
+        </div>
+
+        <!-- Progress Bar -->
+        <progress id="progressBar" value="0" max="100" style="display: none;"></progress>
+
+        <!-- Estimated Time Left -->
+        <div id="timeLeft" class="time-left" style="display: none;">
+            Estimated time left: <span id="time"></span>
+        </div>
+
+        <!-- Torrenting Section -->
         <div class="torrent-section">
             <h2>Torrent Magnet</h2>
             <form id="torrentForm" class="file-upload-form">
@@ -32,12 +64,11 @@
             </div>
         </div>
 
-        <!-- File Upload Section -->
-        <h2>Upload Files/Folders</h2>
-        <form id="uploadForm" method="post" enctype="multipart/form-data" class="file-upload-form">
-            <input type="file" name="file" id="fileInput" multiple webkitdirectory directory required />
-            <input type="submit" value="Upload" class="submit-button" />
-        </form>
+        <!-- Storage Information -->
+        <h2>Storage Information</h2>
+        <p>Total storage: {{ total_storage | filesizeformat }}</p>
+        <p>Used storage: {{ used_storage | filesizeformat }}</p>
+        <p>Available storage: {{ free_storage | filesizeformat }}</p>
 
         <!-- File List -->
         <h2>Files</h2>

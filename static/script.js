@@ -1,180 +1,194 @@
-let droppedFiles = [];
-const fileInput = document.getElementById('fileInput');
-const uploadForm = document.getElementById('uploadForm');
-const progressBar = document.getElementById('progressBar');
-const uploading = document.getElementById('uploading');
-const timeLeft = document.getElementById('timeLeft');
-const timeElement = document.getElementById('time');
-const fileList = document.getElementById('fileList');
+// /static/script.js
 
-uploadForm.onsubmit = function(event) {
-    event.preventDefault();
-    let files = fileInput.files;
-    if (files.length > 0) {
-        uploadFiles(files);
-    } else if (droppedFiles.length > 0) {
-        uploadFiles(droppedFiles);
-    }
-};
+document.addEventListener('DOMContentLoaded', () => {
+    // Torrent Elements
+    const torrentForm = document.getElementById('torrentForm');
+    const magnetInput = document.getElementById('magnetInput');
+    const cancelTorrentButton = document.getElementById('cancelTorrent');
+    const torrentProgress = document.getElementById('torrentProgress');
+    const dataDownloaded = document.getElementById('dataDownloaded');
+    const totalSize = document.getElementById('totalSize');
+    const downloadSpeed = document.getElementById('downloadSpeed');
+    const downloadInfo = document.getElementById('downloadInfo');
+    const torrentNameDisplay = document.getElementById('torrentName');
+    const fileList = document.getElementById('fileList');
 
-function uploadFiles(files) {
-    if (files.length === 0) return;
-
-    let file = files[0];
-    let formData = new FormData();
-    formData.append('file', file);
-
-    var xhr = new XMLHttpRequest();
-    xhr.open('POST', '/', true);
-
-    var startTime = null;
-
-    xhr.upload.onprogress = function(event) {
-        if (event.lengthComputable) {
-            if (!startTime) startTime = new Date().getTime();
-            var elapsed = (new Date().getTime() - startTime) / 1000;
-            var percentComplete = (event.loaded / event.total) * 100;
-            progressBar.value = percentComplete;
-
-            var uploadSpeed = event.loaded / elapsed; // bytes per second
-            var timeRemaining = (event.total - event.loaded) / uploadSpeed; // seconds
-
-            var minutes = Math.floor(timeRemaining / 60);
-            var seconds = Math.floor(timeRemaining % 60);
-
-            timeElement.textContent = minutes + 'm ' + seconds + 's';
-        }
-    };
-
-    xhr.onloadstart = function(event) {
-        uploading.style.display = 'block';
-        progressBar.style.display = 'block';
-        timeLeft.style.display = 'block';
-    };
-
-    xhr.onloadend = function(event) {
-        uploading.style.display = 'none';
-        progressBar.style.display = 'none';
-        timeLeft.style.display = 'none';
-        fileInput.value = ""; // Reset file input
-    };
-
-    xhr.onload = function() {
-        if (xhr.status === 200) {
-            let remainingFiles = Array.from(files).slice(1);
-            droppedFiles = remainingFiles;
-            updateFileList();
-            uploadFiles(remainingFiles);
-        } else {
-            alert('An error occurred while uploading the file.');
-        }
-    };
-
-    xhr.send(formData);
-}
-
-function updateFileList() {
-    var xhr = new XMLHttpRequest();
-    xhr.open('GET', '/', true);
-    xhr.onreadystatechange = function () {
-        if (xhr.readyState == 4 && xhr.status == 200) {
-            var newDocument = document.implementation.createHTMLDocument("New Document");
-            newDocument.documentElement.innerHTML = xhr.responseText;
-            var newFileList = newDocument.getElementById('fileList');
-
-            // Sort the files based on the timestamp
-            let listItems = Array.from(newFileList.children);
-            console.log(listItems)
-            listItems.sort((a, b) => {
-                let aTime = new Date(a.querySelector('.timestamp').dataset.timestamp);
-                let bTime = new Date(b.querySelector('.timestamp').dataset.timestamp);
-                return bTime - aTime; // Sort descending
-            });
-
-            // Clear the existing list and append the sorted items
-            fileList.innerHTML = '';
-            listItems.forEach(item => fileList.appendChild(item));
-
-            updateTimestamps();
-        }
-    };
-    xhr.send();
-}
-
-function updateTimestamps() {
-    const timestamps = document.querySelectorAll('.timestamp');
-    timestamps.forEach(timestamp => {
-        const utcDate = new Date(timestamp.dataset.timestamp);
-        const localDate = new Intl.DateTimeFormat(navigator.language, {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-            hour: 'numeric',
-            minute: 'numeric',
-            second: 'numeric',
-            timeZoneName: 'short'
-        }).format(utcDate);
-        timestamp.textContent = localDate;
+    // Initialize Socket.IO connection
+    const socket = io('http://localhost:3000', {
+        withCredentials: true,
+        transports: ['websocket', 'polling'],
     });
-}
 
-// Drag and drop functionality
-var dropZone = document.getElementById('dropZone');
+    // Handle Socket.IO events
+    socket.on('connect', () => {
+        console.log('Connected to WebSocket server');
+    });
 
-dropZone.ondragover = function(event) {
-    event.preventDefault();
-    dropZone.classList.add('dragover');
-};
+    socket.on('progress', (data) => {
+        const downloadedMB = (data.downloaded / (1024 * 1024)).toFixed(2);
+        const totalMB = (data.total / (1024 * 1024)).toFixed(2);
+        const speedKBps = (data.speed / 1024).toFixed(2);
 
-dropZone.ondragleave = function(event) {
-    event.preventDefault();
-    dropZone.classList.remove('dragover');
-};
+        torrentProgress.value = data.progress;
+        dataDownloaded.textContent = `${downloadedMB} MB`;
+        totalSize.textContent = `${totalMB} MB`;
+        downloadSpeed.textContent = `${speedKBps} KB/s`;
+        torrentNameDisplay.textContent = data.name;
 
-dropZone.ondrop = function(event) {
-    event.preventDefault();
-    dropZone.classList.remove('dragover');
+        downloadInfo.style.display = 'block';
+        torrentProgress.style.display = 'block';
+        cancelTorrentButton.style.display = 'block';
 
-    var files = event.dataTransfer.files;
-    if (files.length > 0) {
-        droppedFiles = Array.from(files); // Store files to be uploaded later
-        updateFileInput();
-    }
-};
+        // Replace "Start Torrent" with "Cancel Torrent"
+        torrentForm.style.display = 'none';
+    });
 
-// Paste functionality
-document.body.onpaste = function(event) {
-    var items = event.clipboardData.items;
-    for (var i = 0; i < items.length; i++) {
-        if (items[i].kind === 'file') {
-            var file = items[i].getAsFile();
-            droppedFiles.push(file);
+    socket.on('done', (data) => {
+        alert(data.message);
+        resetTorrentUI();
+        fetchFileList(); // Fetch and update the file list
+    });
+
+    socket.on('canceled', (data) => {
+        alert(data.message);
+        resetTorrentUI();
+    });
+
+    socket.on('error', (data) => {
+        alert(data.message || 'An unknown error occurred.');
+        resetTorrentUI();
+    });
+
+    // Start Torrent Download
+    torrentForm.onsubmit = function (event) {
+        event.preventDefault();
+        const magnetURI = magnetInput.value.trim();
+        if (!magnetURI) {
+            alert('Please enter a valid Magnet URI.');
+            return;
         }
-    }
-    if (droppedFiles.length > 0) {
-        updateFileInput();
-    }
-};
 
-function updateFileInput() {
-    const dataTransfer = new DataTransfer();
-    droppedFiles.forEach(file => dataTransfer.items.add(file));
-    fileInput.files = dataTransfer.files;
-}
+        fetch('http://localhost:3000/start-torrent', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ magnetURI }),
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    // Optionally, you can clear the input or provide feedback
+                    // magnetInput.value = '';
+                }
+            })
+            .catch(error => console.error('Error starting torrent:', error));
+    };
 
-document.addEventListener('DOMContentLoaded', updateTimestamps);
+    // Cancel Torrent Download
+    cancelTorrentButton.onclick = function () {
+        fetch('http://localhost:3000/cancel-torrent', { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.message) {
+                    alert(data.message);
+                    resetTorrentUI();
+                }
+            })
+            .catch(error => console.error('Error canceling torrent:', error));
+    };
 
-document.addEventListener('DOMContentLoaded', function() {
-    function checkMobileDevice() {
-      const userAgent = navigator.userAgent.toLowerCase();
-      const isMobile = /iphone|ipad|ipod|android|blackberry|mini|windows\sce|palm/i.test(userAgent);
-      if (isMobile) {
-        document.body.classList.add('mobile');
-      } else {
-        document.body.classList.add('not-mobile');
-      }
+    // Reset Torrent UI Elements
+    function resetTorrentUI() {
+        torrentForm.style.display = 'flex';
+        magnetInput.value = '';
+        torrentProgress.style.display = 'none';
+        torrentProgress.value = 0;
+        downloadInfo.style.display = 'none';
+        cancelTorrentButton.style.display = 'none';
+        torrentNameDisplay.textContent = 'N/A';
     }
-  
-    checkMobileDevice();
-  });
-  
+
+    // Handle Tab Visibility Changes
+    window.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            resetTorrentUI();
+        }
+    });
+
+    // File Upload Form Handling
+    const uploadForm = document.getElementById('uploadForm');
+    const fileInput = document.getElementById('fileInput');
+
+    uploadForm.onsubmit = function (event) {
+        event.preventDefault();
+        const files = fileInput.files;
+        if (files.length === 0) {
+            alert('Please select files or folders to upload.');
+            return;
+        }
+
+        const formData = new FormData();
+        for (let i = 0; i < files.length; i++) {
+            formData.append('file', files[i]);
+        }
+
+        fetch('/', {
+            method: 'POST',
+            body: formData,
+        })
+            .then(response => {
+                if (response.redirected) {
+                    window.location.href = response.url;
+                }
+            })
+            .catch(error => console.error('Error uploading files:', error));
+    };
+
+    // Function to Fetch and Update File List
+    function fetchFileList() {
+        fetch('/api/files')
+            .then(response => response.json())
+            .then(data => {
+                // Clear the existing file list
+                fileList.innerHTML = '';
+
+                data.forEach(file => {
+                    const li = document.createElement('li');
+
+                    const fileTextDiv = document.createElement('div');
+                    fileTextDiv.classList.add('fileText');
+
+                    const fileLink = document.createElement('a');
+                    fileLink.href = `/uploads/${encodeURIComponent(file.name)}`;
+                    fileLink.textContent = file.name;
+                    fileLink.classList.add('filename');
+
+                    fileTextDiv.appendChild(fileLink);
+                    const fileInfo = document.createElement('span');
+                    fileInfo.textContent = ` (${file.size})`;
+                    fileTextDiv.appendChild(fileInfo);
+
+                    li.appendChild(fileTextDiv);
+
+                    const deleteForm = document.createElement('form');
+                    deleteForm.method = 'post';
+                    deleteForm.action = `/delete/${encodeURIComponent(file.name)}`;
+
+                    const deleteButton = document.createElement('input');
+                    deleteButton.type = 'submit';
+                    deleteButton.value = 'Delete';
+                    deleteButton.classList.add('submit-button', 'delete-button');
+
+                    deleteForm.appendChild(deleteButton);
+                    li.appendChild(deleteForm);
+
+                    fileList.appendChild(li);
+                });
+            })
+            .catch(error => console.error('Error fetching file list:', error));
+    }
+
+    // Initial Fetch of File List on Page Load
+    fetchFileList();
+});
